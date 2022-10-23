@@ -1,7 +1,7 @@
 CUDA Path Tracer
 ================
 
-**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
+**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 4**
 
 
 * Yilin Liu
@@ -10,123 +10,96 @@ CUDA Path Tracer
 * Tested on personal laptop:
   - Windows 10, Intel(R) Core(TM), i7-10750H CPU @ 2.60GHz 2.59 GHz, RTX 2070 Max-Q 8GB
 
+Overview
+=============
+
+In this project I implemented a pathtracing denoiser that runs on CUDA and directs a smoothing filter using geometry buffers (G-buffers). It helps provide a smoother appearance in a pathtraced image with fewer samples per pixel and is based on the study "Edge-Avoiding A-Trous Wavelet Transform for rapid Global Illumination Filtering."
+
 Features
 =============
-* Shading Kernel with BSDF Evaluation
-* Path Termination using Stream Compaction
-* Sorting of Paths Segment by Material type
-* First Bounce Intersection Cache
-* Uniform diffuse
-* Perfect Specular Reflective
-* Refraction (Fresnel dielectric)
-* Stochastic Sampled Antialiasing
-* OBJ Mesh Loading using TinyOBJ
-* Physically-based depth-of-field
-* Motion Blur
+* A-Trous denoiser
+* Gbuffer visualization
 
-![](img/cover2.png)
-
-Path Termination using Stream Compaction
+G-Buffer
 ============
-CUDA can only launch a finite number of blocks at a time. Some threads end with only a few bounces while others may end with a lot. Therefore, we will waste a lot of threads. 
 
-To solve this problem, we launch a kernel that traces ONE bounce for every ray in the pool. The ray should be terminated while its remaining bounce equals 0 (reaches the limit or hits the light source). According to the results, we remove terminated rays from the ray pool with stream compaction by partitioning the running rays and terminated rays. As a result, we could free idle threads and could save many computation resources.
-
-I initially tested with the Cornell Box scene and it does not seem to have a difference. However, if I switch the camera directly towards the light(ray will be terminated and removed by stream compaction), we can see that the method gives an improvement to the overall performance.
-
-| With vs Without Stream Compaction |
-:-------:|
-|![](img/figure/sc.png)|
-
-Sort by Materials Type 
+Performance Analysis
 ============
-Rays hit different materials will evaluate different BSDF. As a result, the thread in a single warp has to handle all kinds of materials. Some threads will end ealier and be idled. To solve this, we could use Radix Sort by material ID to make rays that hit the same type of material contiguous in memory. Therefore, we can further parallelize rays and perform intersection testing and shading evaluation in separate kernels. 
+**Additional Time for Each Frame**
 
-Since the sorting algorithm leads to some overhead, this will only add to efficiency when there are many materials in the scene. We tested the method in a scene that has more than 10 unique material types. We can see from the figrue below that there is no sigificant difference between two methods, altough turning material sort on will be slightly faster.
+According to the test analysis, the cost added by denoising is varying between 0.8 ms to 20 ms mainly depending on the resolution.
 
-| With vs Without Material Sorting |
-:-------:|
-|![](img/figure/ms.png)|
+**How denoising influences the number of iterations needed to get an "acceptably smooth" result**
 
+A denoised image with 30 iteratiions could qualify the naive path traced image with 1000 iterations!
 
-First Bounce Intersection Cache
-============
-We further cache the first bounce intersection and store it in a buffer. Later bounces can use it since the camera shoots each ray towards a fixed direction and the first bounce intersection will remain the same regardless of iterations. 
-
-From the figure below, we don't see a sigificant difference with our single bunny object. Perhaps this will work in scenarios with denser objects or high resolution. 
-
-| With vs Without First Bounce Intersection Cache |
-:-------:|
-|![](img/figure/cache.png)|
-
-Refraction
-===========
-The refraction effects was implemented using glm's `refract()` function according to Schlick's approximation and Snell's Law. 
-
-| Refraction Ball | Refraction Glass Bottle |
+| 30 samples denoised image | 1000 samples naive image |
 :-------:|:-------:
-|![](img/refraction.png)|![](img/refraction2.png)|
+|![](img/denoiser/30sample_denoiser.png)|![](img/denoiser/1000sample.png) |
 
-Stochastic Anti-aliasing
-===========
-The anti-alising was implemented by jittering the direction of sample ray with random numbers. From the figure below, we find that the result is acceptable.
+**How denoising at different resolutions impacts runtime**
 
-| With AA | No AA |
+The time for denoising increases as the resolution increases.
+
+
+**How varying filter sizes affect performance**
+
+The effect of filter size increases initially and goes down later. 
+
+
+**how visual results vary with filter size -- does the visual quality scale uniformly with filter size?**
+
+We can see from the table below that while the filter size is below 30, the denoise effect is not significant enough. When the filter size goes large, the background is blurred. Therefore, the ideal range of an efficient filter size should be between 30 to 60.
+
+| Filter Size | Image |
 :-------:|:-------:
-|![](img/AA.png)|![](img/NO_AA.png)|
-|![](img/aa_large.png ){:height="800px" width="800px"} | ![](img/noAA_large.png){:height="800px" width="800px"}|
+|5|![](img/denoiser/fs5.png) |
+|10|![](img/denoiser/fs10.png) |
+|20|![](img/denoiser/fs20.png) |
+|30|![](img/denoiser/fs30.png) |
+|40|![](img/denoiser/fs50.png) |
+|50|![](img/denoiser/fs60.png) |
+|60|![](img/denoiser/fs70.png) |
+|70|![](img/denoiser/fs80.png) |
+|80|![](img/denoiser/fs90.png) |
+|90|![](img/denoiser/fs100.png) |
+|100|![](img/denoiser/fs110.png) |
 
-Mesh Loading
-===========
-I used [tinyObj](https://github.com/tinyobjloader/tinyobjloader) to load obj file. During the loading, we determine the min and max bound of the mesh for bounding box check so that ray does not have to compute intersection with every triangle. 
+**how effective/ineffective is this method with different material types**
 
-For each ray, there may be multiple intersection with the mesh. Therefore, we need to select the closest one.
+We can see that the denoiser works fine on alll types of materials except that the refractiion could be blurred a little bit. 
 
-| Bunny | Refraction |
+| Materials | Orignial Image| Denoised Image |
 :-------:|:-------:
-|![](img/AA.png)|![](img/bunny_refract.png)|
+|Diffuse|![](img/denoiser/diffuse_naive.png) |![](img/denoiser/diffuse_denoised.png) |
+|Specular|![](img/denoiser/specular_naive.png) |![](img/denoiser/fs50.png) |
+|Refractive|![](img/denoiser/refract_naive.png) |![](img/denoiser/refract_denoised.png) |
 
-For a single bunny scene, we can see that adding a bounding box could improve the performance by ~10%.
+**How do results compare across different scenes - for example, between cornell.txt and cornell_ceiling_light.txt. Does one scene produce better denoised results? Why or why not?**
 
-| With vs Without Bounding Box |
-:-------:|
-|![](img/figure/bbcheck.png)|
-
-Depth of Field
-============
-I implemented a physically-based thin lens model camera with focal distance and lens radius based on [pbrt6.2.3](https://www.pbr-book.org/3ed-2018/Camera_Models/Realistic_Cameras). The idea is that, instead of a pinhole camera model, the ray falls on a disk area of the lens and then focus onto the focal plane. We sample points on the disk and re-compute the ray origin(points on the lens) and direction (towards points on focal plane). 
-
-| Focal Distance: 10, Lens Radius: 0.5 | Focal Distance: 10, Lens Radius: 1.0 |
-:-------:|:-------:
-|![](img/FD10_R05.png)|![](img/FD10_R1.png)|
-
-Motion Blur
-===========
-I developed two ways to achieve motion blur in path tracer. The first one works on the camera and it is global based. It simply adds offset to the sample direction with respect to the iterations.
-
-| Sphere Motion Blur 1 | Sphere Motion Blur 2 |
-:-------:|:-------:
-|![](img/motion_blur_object.png)|![](img/motion_blur_object2.png)|
+In my case, the denoiser works better in brighter scene. The reason is, with a light that has a larger areas, more paths fall onto the light source within a limited number of iterations and the scene converges faster. As a result, there are less noises inherently in the scene and leave less work for the denoiser whose performance could significantly be influenced by the initial conditions.  
 
 
-The second one works on certain objects and users can define a direction of the movement. By adding offset to objects, there will be an echo remained at the original place due to the sampling delay at that region. 
+**Other scenes
 
-| Camera Motion Blur 1 | Camera Motion Blur 2 |
-:-------:|:-------:
-|![](img/motion_blur_camera.png)|![](img/motion_blur_camera2.png)|
+We can see from the table below that the denoiser fails to work to render a bunny with ~50 samples. The problem can be mitigated when we switch to a small size filter.
 
+ 
+| Bunny with 50 samples | Denosied Bunny with Filter Size 60 | Denosied Bunny with Filter Size 25 |
+:-------:|:-------:|:-------:
+|![](img/denoiser/bunny_naive.png)|![](img/denoiser/bunny_denoised.png) |![](img/denoiser/bunny_denoised25.png) |
 
 
 Bloopers
 ===============
-  | *Refraction Fail* |
+  | *G-Buffer Position Fail* |
 |:--:|  
- |![image](img/bloopers/refract_fail.png)|
+ |![image](img/bloopers/gbuffer_pos_bug2.png)|
  
 
-  | *Lonely Cow (Bounding Box Predicate Fail)* |
+  | *G-Buffer Position Fail2* |
   |:--:|
-  |![image](img/bloopers/cow1.png)|
+  |![image](img/bloopers/gbuffer_pos_bug3.png)|
    
 Reference
 ===============
