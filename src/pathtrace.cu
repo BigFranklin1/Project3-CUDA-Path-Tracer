@@ -158,6 +158,14 @@ static GBufferPixel* dev_gBuffer = NULL;
 static glm::vec3* dev_denoise_image = NULL;
 static glm::vec3* dev_denoise_temp = NULL;
 
+
+#if TIMER
+cudaEvent_t start, stop;
+int timerCount = 0;
+float totaltime = 0.f;
+#endif
+
+
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
 	guiData = imGuiData;
@@ -896,6 +904,9 @@ void applyDenoise(float c_phi, float n_phi, float p_phi, float filtersize, int i
 		(cam.resolution.x + blockSize2d.x - 1) / blockSize2d.x,
 		(cam.resolution.y + blockSize2d.y - 1) / blockSize2d.y);
 
+#if TIMER
+	cudaEventRecord(start);
+#endif
 
 	int atrou_iter = glm::floor(log2((filtersize - 5) / 4.f)) + 1;
 	int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -910,6 +921,19 @@ void applyDenoise(float c_phi, float n_phi, float p_phi, float filtersize, int i
 		dev_denoise_temp = dev_denoise_image;
 		dev_denoise_image = temp;
 	}
+
+#if TIMER
+	cudaEventRecord(stop);
+	cudaEventSynchronize(stop);
+	float t;
+	cudaEventElapsedTime(&t, start, stop);
+	totaltime += t;
+	timerCount++;
+	if (timerCount > 30)
+	{
+		std::cout << "DENOISE TIME: " << totaltime / (float)timerCount << std::endl;
+	}
+#endif
 
 	// Retrieve image from GPU
 	cudaMemcpy(hst_scene->state.image.data(), dev_denoise_image, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);

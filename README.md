@@ -27,7 +27,7 @@ Performance Analysis
 ============
 **Additional Time for Each Frame**
 
-According to the test analysis, the cost added by denoising is varying between 0.8 ms to 20 ms mainly depending on the resolution.
+The additional time varies from 1ms to ~10ms depending on the resolution. In a typical frame of 800x800, the average denoising time is 3ms.
 
 **How denoising influences the number of iterations needed to get an "acceptably smooth" result**
 
@@ -39,9 +39,12 @@ A denoised image with 30 iteratiions could qualify the naive path traced image w
 
 **How denoising at different resolutions impacts runtime**
 
-The time for denoising increases as the resolution increases.
+From the table below, we could see that the time for denoising increases almost linearly as the resolution increases.
 
-
+  | Denoising time vs Resolution |
+|:--:|  
+ |![image](img/denoiser/time.png)|
+ 
 **How varying filter sizes affect performance**
 
 The effect of filter size increases initially and goes down later. 
@@ -70,7 +73,7 @@ We can see from the table below that while the filter size is below 30, the deno
 We can see that the denoiser works fine on alll types of materials except that the refractiion could be blurred a little bit. 
 
 | Materials | Orignial Image| Denoised Image |
-:-------:|:-------:
+:-------:|:-------:|:-------:
 |Diffuse|![](img/denoiser/diffuse_naive.png) |![](img/denoiser/diffuse_denoised.png) |
 |Specular|![](img/denoiser/specular_naive.png) |![](img/denoiser/fs50.png) |
 |Refractive|![](img/denoiser/refract_naive.png) |![](img/denoiser/refract_denoised.png) |
