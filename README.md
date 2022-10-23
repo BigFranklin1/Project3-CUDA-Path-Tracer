@@ -1,4 +1,4 @@
-CUDA Path Tracer
+CUDA Path Tracer Denoiser
 ================
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 4**
@@ -18,10 +18,8 @@ In this project I implemented a pathtracing denoiser that runs on CUDA and direc
 Features
 =============
 * A-Trous denoiser
-* Gbuffer visualization
+* G Buffer visualization
 
-G-Buffer
-============
 
 Performance Analysis
 ============
@@ -49,6 +47,10 @@ From the table below, we could see that the time for denoising increases almost 
 
 The effect of filter size increases initially and goes down later. 
 
+
+  | Denoising time vs Resolution |
+|:--:|  
+ |![image](img/denoiser/time_fs.png)|
 
 **how visual results vary with filter size -- does the visual quality scale uniformly with filter size?**
 
@@ -83,14 +85,23 @@ We can see that the denoiser works fine on alll types of materials except that t
 In my case, the denoiser works better in brighter scene. The reason is, with a light that has a larger areas, more paths fall onto the light source within a limited number of iterations and the scene converges faster. As a result, there are less noises inherently in the scene and leave less work for the denoiser whose performance could significantly be influenced by the initial conditions.  
 
 
-**Other scenes
+**Other scenes**
 
 We can see from the table below that the denoiser fails to work to render a bunny with ~50 samples. The problem can be mitigated when we switch to a small size filter.
+
 
  
 | Bunny with 50 samples | Denosied Bunny with Filter Size 60 | Denosied Bunny with Filter Size 25 |
 :-------:|:-------:|:-------:
 |![](img/denoiser/bunny_naive.png)|![](img/denoiser/bunny_denoised.png) |![](img/denoiser/bunny_denoised25.png) |
+
+
+**G Buffers**
+
+
+| World Normal | Position |
+:-------:|:-------:
+|![](img/denoiser/normal.png)|![](img/denoiser/pos.png) |
 
 
 Bloopers
@@ -106,6 +117,6 @@ Bloopers
    
 Reference
 ===============
-[tinyObj](https://github.com/tinyobjloader/tinyobjloader)
+* [Edge-Avoiding A-Trous Wavelet Transform for fast Global Illumination Filtering](https://jo.dreggn.org/home/2010_atrous.pdf)
 
-[pbrt](https://pbrt.org/)
+* [imgui]( https://github.com/ocornut/imgui)
